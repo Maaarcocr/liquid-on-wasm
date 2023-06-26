@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<script src="https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@latest/dist/browser.umd.js"></script>
+
+<head>
+  <title>Liquid Renderer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    #result {
+      border: 1px solid black;
+      padding: 10px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Liquid Renderer</h1>
+  <div>
+    <label for="liquidCode">Liquid Code:</label><br>
+    <textarea id="liquidCode" rows="4" cols="50"></textarea>
+  </div>
+  <div>
+    <label for="liquidData">Liquid Data:</label><br>
+    <textarea id="liquidData" rows="4" cols="50"></textarea>
+  </div>
+  <button id="renderButton">Render</button>
+  <div id="result"></div>
+
+  <script>
+    document.getElementById('renderButton').addEventListener('click', function () {
+      var liquidCode = document.getElementById('liquidCode').value;
+      var liquidData = document.getElementById('liquidData').value;
+      try {
+        liquidData = JSON.parse(liquidData);
+      } catch (e) {
+        document.getElementById('result').textContent = "Invalid JSON data!";
+        return;
+      }
+      renderLiquid(liquidCode, liquidData);
+    });
+
+    function renderLiquid(liquidCode, liquidData) {
+      render_liquid(liquidCode, JSON.stringify(liquidData), document.getElementById('result'));
+    }
+    const { DefaultRubyVM } = window["ruby-wasm-wasi"];
+    const main = async () => {
+        // Fetch and instantiate WebAssembly binary
+        const response = await fetch(
+            //      Tips: Replace the binary with debug info if you want symbolicated stack trace.
+            //      (only nightly release for now)
+            //      "https://cdn.jsdelivr.net/npm/ruby-3_2-wasm-wasi@next/dist/ruby.debug+stdlib.wasm"
+            "packed_ruby.wasm"
+        );
+        const buffer = await response.arrayBuffer();
+        const module = await WebAssembly.compile(buffer);
+        const { vm } = await DefaultRubyVM(module);
+
+        vm.printVersion();
+        vm.eval(`
+      require 'bundler/setup'
+require 'liquid'
+require 'js'
+require 'json'
+JS.global[:render_liquid] = ->(template, data, div) {
+  data = JSON.parse(data.to_s)
+  result = Liquid::Template.parse(template.to_s).render(data)
+  div[:innerHTML] = result
+}
+       `);
+    };
+
+    main();
+  </script>
+</body>
+</html>
